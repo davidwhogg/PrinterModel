@@ -1,0 +1,316 @@
+% Copyright 2012 David W. Hogg (NYU).  All rights reserved.
+
+% To do
+% -----
+% - find out what is written about proprietary conversions and calibrations
+
+\documentclass[letterpaper,preprint,dvipdf]{aastex}
+\usepackage{natbib}
+\usepackage{ifthen}
+\newcounter{address}
+\newcommand{\latin}[1]{\textit{#1}}
+\newcommand{\ie}{\latin{i.e.}}
+\newcommand{\eg}{\latin{e.g.}}
+\newcommand{\cf}{\latin{cf.}}
+\newcommand{\etc}{\latin{etc.}}
+\newcommand{\etal}{\latin{et~al.}}
+
+\begin{document}
+\title{
+  Conversion of color images between RGB and CMYK representations.
+}
+\author{
+  David~W.~Hogg\altaffilmark{\ref{NYU},\ref{email}}
+}
+
+\setcounter{address}{1}
+\altaffiltext{\theaddress}{\stepcounter{address}\label{NYU}
+Center for Cosmology and Particle Physics, Department of Physics, New
+York University, 4 Washington Place, New York, NY 10003}
+\altaffiltext{\theaddress}{\stepcounter{address}\label{email}
+To whom correspondence should be addressed: \texttt{david.hogg@nyu.edu}}
+
+\begin{abstract}
+RGB images are described in terms of light emission from a device
+(like a screen); CMYK images are described in terms of ink applied to
+a white surface (like paper).  The conversion from RGB to CMYK must be
+made in taking a screen image and printing it out on a standard
+printer.  All the conversion methods in the public domain are
+extremely heuristic (and we can hypothesize that most of the
+proprietary conversions are too).  Here I propose a conversion method
+that is based on a simplified \emph{physical model} for how printer
+dyes absorb and reflect incident radiation.  This physical model has
+12-ish free hyper-parameters that describe how well each kind of ink
+absorbs each color of light.  The conversion is then the optimization
+of a pixel-by-pixel model, in which each pixel has four parameters (C,
+M, Y, K) and three ``data'' (R, G, B) plus a regularization that
+encourages the printer to do as much as possible with the (presumably
+cheaper, better) black (K) dye.  The hyper-parameters can be set
+heuristically, or by inspection of test prints, or else by
+quantitative comparative metrology of a display device and a sensibly
+illuminated print-out.
+\end{abstract}
+
+\section{Introduction}
+
+In this internet age, the most common standard representation of color
+images is red--green--blue (RGB), in which the image is decomposed
+into three layers, one corresponding to or indicating the amount of
+red light emitted by the image, one corresponding to the amount of
+green, and one blue.  The archetypal device to display this image is a
+computer screen, which contains red, green, and blue light-emitting
+elements.  The three image planes describe how bright the
+light-emitting elements ought to be made in displaying the image.  A
+zero image is all black; it emits no light at all.  This color
+representation is fundamentally ``additive'' because the image
+description describes, at each pixel, how much red light to add, how
+much green light to add and how much blue light to add.  In the
+incoherent limit (in which your screen operates and in which you live,
+if you don't illuminate your home small numbers of bright lasers),
+electromagnetic radiation is indeed additive in the way imagined by
+the implied physical model of the RGB image.  That's good.
+
+Of course the reason that we use three colors to make up images is
+because in our color vision, there are three kinds of ``cones'', one
+red-sensitive, one green-sensitive, and one blue-sensitive.  There is
+much to say here, but one thing that comes to mind is that
+\emph{really} perceptual color-space is four-dimensional, because
+there are three kinds of cones \emph{and} the rods, which are not
+\emph{exactly} in the sensitivity subspace of the cones.  So
+three-dimensional color space probably can't quite represent, even in
+principle, every perceptual color.  Another comment to make is that
+\emph{some} people have \emph{four} kinds of cones; these people can
+often feel unsatisfied with colors presented by monitors and printers;
+certainly for these individuals, the RGB representation is not
+sufficient.  But this note is \emph{not} about physiology or
+psychology, it is about printing hardware.
+
+The cyan--magenta--yellow--black (CMYK) representation is designed for
+hard-copy printing technology.  The archetypal device is an dye
+printer printing on white paper.  The four image planes describe how
+much of each of four dyes the printer ought to lay down on the white
+paper.  A zero image is all white; it uses no dye at all.  The CMYK
+system is usually thought of as ``subtractive'' because dyes absorb
+rather than emit light.  However, the system is really
+``multiplicative'' because---in the limit of perfect, non-reflective,
+purely absorbing dyes applied properly---the absorption of the four
+dye layers combine multiplicatively to produce the final absorption in
+the image.  That is, each layer of (some particular) ink absorbs some
+fraction $f$ of the photons (at some particular wavelength) not
+absorbed by the other layers; it changes the reflected light by a
+multiplicative factor of $(1-f)$.  The ``subtraction'' of subtractive
+dyes is the subtraction of $f$ from 1 in the multiplicative factor (at
+least as far as I can tell).
+
+In the printer model below, I am going to assume that the inks are
+absorbing in this multiplicative way, but I am going to assume
+something much stronger than this as well: I am going to assume that
+\emph{all} the ink does is \emph{absorb}.  The toy model to keep in
+mind is to a piece of paper with layers of C, M, Y, and K ink on it,
+it has a white reflecting surface and then various thicknesses of ink
+on top of that surface.  You can think of the ink layers like
+superimposed gels or filters or pieces of thin, colored glass.
+Incoming light passes through the layers of ink before it gets to the
+paper.  At each layer, the incoming light gets partially absorbed (for
+example, the cyan C layer absorbs a some fraction of the red light).
+The light that makes it through all the layers (in this classical
+picture) reflects off the paper and then passes back through all the
+layers.  On the way back out, more of the light gets absorbed by the
+layers.  The key assumption I am going to make is that the only
+possible trajectories for the (classically imagined) photons are:
+Either the photon is absorbed on its way in, or else it makes it
+through all the layers on the inward journey, bounces off the white
+paper layer and is absorbed on the way out, or else it makes it
+through all the layers on the inward journey, bounces off the white
+paper, and makes it all the way back through all the layers on the
+outward journey.  The trajectories I am \emph{not} permitting---the
+trajectories I am explicitly assuming are impossible or at least
+rare---are those that bounce off of the ink layers directly.  In
+reality, if the ink is ``laid down on'' the white surface in
+dielectric layers, there will be reflections from the ink surfaces as
+well as from the paper surface itself.
+
+The details of the interactions between photons, paper, and ink are
+much more complicated (of course) than this model, because the inks
+are not laid down in thick dielectric layers on top of the paper but
+rather bind with the paper in certain ways; the optical properties of
+the dyed surface are extremely non-trivial.  However, the key
+assumption is that the inks only augment the \emph{absorption}
+properties of the paper only; they don't ever augment the
+\emph{reflection} properties of the paper.  This can't be strictly
+true for any real printing process, but to parameterize these effects
+(which are presumably small), is intellectually and computationally
+expensive.
+
+As I note above, in the naive model (paper with layers of ink on
+top), light travels through the ink layers twice, the $(1-f)$
+absorption factor is the square of the single-pass absorption factor.
+In reality, because the ink is not really in a superimposed layer, but
+really rather part of the paper, again the story is more complicated,
+but we can still represent the absorption process purely
+multiplicatively (by assumption!).
+
+One more note: In real printers, when the C, M, Y, or K ink is laid
+down at less than full strength, it is usually placed on the paper in
+a fine dot pattern.  Each point on the paper has different (in
+principle) amounts of C, M, Y, and K ink; it is only when the eye (or
+measuring device) averages over a spot larger than the scale of this
+pattern that the printing produces the correct colors.  Nothing about
+this patterning changes the story below, or the validity of the
+assumptions.
+
+I will begin by giving the standard practice and then, in what
+follows, re-consider the conversion by thinking about the simplest
+possible ``linear'' physical model of dye absorption and a very simple
+description of how the inks depart from what you might call
+``perfect'' CMYK dyes (to be defined below).  The conversions I obtain
+are not quite as simple as the standard conversion, but they produce
+much better matches between, \eg, flat-panel computer monitor output
+and C-print hardcopy output.  It is worthy of note that the standard
+conversions (given below) are wrong \emph{even} for a printer loaded
+with perfect CMYK dyes.
+
+One note of caution: the demonstration of color conversions between
+screens and hardcopy is somewhat difficult in a paper released on the
+internet.  The images and conversions I show are ideally compared (in
+2012) on a relatively new computer monitor and a high-quality C-print
+(the high-quality digital printing technology at what is now left of
+the idea of a photography laboratory).
+
+\section{Conversions}
+
+\paragraph{The standard story:}
+The standard non-proprietary conversion of RGB images to CMYK and back
+is \latin{ad hoc} and does not consider the physical process of
+absorption in a CMYK output.  It is
+\begin{eqnarray}\displaystyle
+C & = & [1-R] \nonumber \\
+M & = & [1-G] \nonumber \\
+Y & = & [1-B] \nonumber \\
+K & = & \max(C,M,Y) \quad ,
+\end{eqnarray}
+where we have assumed that the $(R,G,B)$ and $(C,M,Y,K)$ values are on
+$[0,1]$ (often they are one-byte integers on [0,255]).  Its reverse is
+\begin{eqnarray}\displaystyle
+R & = & 1-\max(C,K) \nonumber \\
+G & = & 1-\max(M,K) \nonumber \\
+B & = & 1-\max(Y,K) \quad .
+\label{eq:standard}
+\end{eqnarray}
+One of the indicators that these conversions are wrong is that when a
+good RGB image is converted this way and printed out, it tends to look
+bad; there is much advice on the internet about this subject, and it
+usually involves tuning the ``gamma'' of the image.  This is a
+heuristic fix that adjusts for the fact that these conversions are not
+physically justifiable.
+
+DWH: Stuff about detailed printer calibration information; look up
+terminology; etc.
+
+\paragraph{A perfect, physical printer:}
+In an ideal world, all RGB output devices would have, \eg, red
+elements that emit perfectly red light with no ``leakage'' into the
+green or blue channels.  All CMYK output devices would have, \eg, cyan
+ink that, when laid down with $C=1$, absorbs absolutely all red light
+incident on the paper and absorbs absolutely no green or blue light.
+While it may be possible to make RGB emission elements that are close
+to perfect, in reality it is impossible to make real dyes which, when
+applied to real paper, perfectly absorb and transmit as desired.
+If such perfect inks were possible, the translation to RGB from CMYK
+would be
+\begin{eqnarray}\displaystyle
+R & = & [1-C]\,[1-K] \nonumber \\
+G & = & [1-M]\,[1-K] \nonumber \\
+B & = & [1-Y]\,[1-K] \quad .
+\label{eq:ideal}
+\end{eqnarray}
+That is, $C$ and $K$ pigment perfectly blocks---in a multiplicative
+way---$R$ light, but $C$ doesn't affect $G$ or $B$ light at all.
+Furthermore, $K$ blocks all three colors of light equally.
+
+\paragraph{An imperfect, physical printer:}
+In reality, because there is some ``grey'' absorption caused by each
+of the $C$, $M$, and $Y$ inks, and because no absorption is perfect,
+the translation to RGB from CMYK is something like
+\begin{eqnarray}\displaystyle
+R & = & [1-C\,(1-\delta_{CR})]\,
+        [1-M\,\delta_{MR}]\,
+        [1-Y\,\delta_{YR}]\,
+        [1-K\,(1-\delta_{KR})] \nonumber \\
+G & = & [1-C\,\delta_{CG}]\,
+        [1-M\,(1-\delta_{MG})]\,
+        [1-Y\,\delta_{YG}]\,
+        [1-K\,(1-\delta_{KG})] \nonumber \\
+B & = & [1-C\,\delta_{CB}]\,
+        [1-M\,\delta_{MB}]\,
+        [1-Y\,(1-\delta_{YB})]\,
+        [1-K\,(1-\delta_{KB})] \quad ,
+\label{eq:real}
+\end{eqnarray}
+where, for a reasonable output device, all twelve of the
+$\delta_{ij}$ coefficients are small.
+
+The twelve small coefficients $\delta_{ij}$ can in general be
+determined with radiance experiments on output from the output device;
+I would recommend a standard tabulation of all values from all popular
+printers!  In practice, in what follows, we will simply make up values
+and use them for demonstration purposes.  High-end output users will
+want to take some time to estimate these coefficients, either with
+metrology or qualitative experiments.
+
+It is worthy of note that even the ``real'' transformation
+(\ref{eq:real}) is highly idealized, because it assumes that the dyes
+do not reflect light directly (they only absorb or transmit) and that
+there are no non-linear effects such as dye mixing or saturation.
+
+(Note: get some real engineering terminology in the above paragraph.)
+
+\section{Implementation}
+
+The implementation of the real transformation (\ref{eq:real}) from
+CMYK to RGB is trivial, once the $\delta_{ij}$ have been set.  The
+inverse transformation, from RGB to CMYK, requires iteration.  It is
+also both over-constrained and under-constrained:  With real
+dyes, because the $\delta_{ij}$ are not all zero, some RGB color
+combinations cannot be exactly represented in CMYK, so we need to
+optimize some non-trivial objective function.  Because there are four
+image planes with CMYK and three with RGB, in general the colors that
+\emph{can} be represented exactly in CMYK have multiple possible
+representations.  I recommend minimizing the objective function
+\begin{equation}
+\psi = [R-\tilde{R}]^2
+     + [G-\tilde{G}]^2
+     + [B-\tilde{B}]^2
+     + \epsilon\,[1-K]^2 \quad ,
+\end{equation}
+where $(\tilde{R},\tilde{G},\tilde{B})$ are the ``model'' $(R,G,B)$
+values obtained from the $(C,M,Y,K)$ values (the variables, in this
+case) and the ``real'' transformation (\ref{eq:real}), and where
+$\epsilon$ is set so small that it serves only to break degeneracies.
+Minimization of $\psi$ is just least squares, but with an added
+$\epsilon$ term that causes the conversion to favor the solution, when
+there is a degeneracy, that uses the most black (K) dye and the least
+colored dye.
+
+[DWH: In practice, logistic function and L-M optimization.]
+
+[DWH: Note about conversion of bytes to floats: add halfs and divide
+  by 256 going byte to float, and multiply by 256 and floor when going
+  back.  Nothing else makes sense.]
+
+\section{tests and results}
+
+\acknowledgments It is a pleasure to thank Daniel Foreman-Mackey (NYU)\ldots
+
+\bibliographystyle{apj}
+\bibliography{apj-jour,ccpp}
+
+%% \clearpage
+%% \begin{figure}
+%% \plotone{aok_nearest_lowz.ps}
+%% \caption{Same as Figure~\ref{fig:environments}, except using the
+%%   transverse, proper, nearest-neighbor distance $\rpmin$ (see text) as
+%%   the environment indicator.\label{fig:nearest}}
+%% \end{figure}
+
+\end{document}
