@@ -3,7 +3,7 @@ PrinterModel
 A model of the RGB-to-CMYK conversion (and back) that is based on the
 physical properties of ink on paper.
 
-Copyright 2012 David W. Hogg (NYU) http://cosmo.nyu.edu/hogg/
+Copyright 2012 David W. Hogg (NYU) <http://cosmo.nyu.edu/hogg/>.
 
 License:  GNU General Public License, version 2
 
@@ -20,4 +20,4 @@ License:  GNU General Public License, version 2
 
           You should have received a copy of the GNU General Public
           License version 2 along with this program.  If not, see
-          <http://www.gnu.org/licenses/old-licenses/gpl-2.0.html>
+          <http://www.gnu.org/licenses/old-licenses/gpl-2.0.html>.
