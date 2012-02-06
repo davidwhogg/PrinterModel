@@ -18,7 +18,11 @@ version 2 along with this program.  If not, see
 
 # to-do
 # -----
-# - proper doc strings
+# - better initialization for rgb2cmyk
+# - proper doc strings for many functions
+# - proper unit tests for logistic and inverse
+# - proper unit tests for float2byte and inverse
+# - proper unit tests for rgb2cmyk and inverse
 
 if __name__ == '__main__':
     import matplotlib as mpl
@@ -31,12 +35,29 @@ import scipy.optimize as op
 import Image as im
 
 def logistic(x):
+    '''
+    Compute and return the logistic function of x.  x can be anything of which you
+    can take the np.exp(x).  The return value q will have 0<q<1.
+    '''
     return 1. / (1. + np.exp(-x))
 
-class hoggprinter():
+def inverse_logistic(q):
+    '''
+    Compute and return the number x for which the logistic function
+    gives the input q.  The input can be any number 0<q<1 of which you
+    can take the np.log().
+    '''
+    return -1. * np.log(1. / q - 1.)
 
-    # a small number; DWH intuits that it should be < 1/256
-    epsilon = 0.001
+class hoggprinter():
+    '''
+    A class representing the physical CMYK printer model.
+
+    Initialize with three parameters:  YADA, YADA, YADA
+
+    Note:  Internal hard-set magic number epsilon.
+    '''
+    epsilon = 0.001 # magic number
 
     def __init__(self, delta_K, delta_d, delta_o):
         self.eta = np.array(
@@ -56,14 +77,29 @@ class hoggprinter():
         s += '\n  cache contains %d conversions' % len(self.cache)
         return s
 
-    # input 4-element np.array on [0, 1] (ie, one pixel)
-    # output 3-element np.array on [0, 1]
     def cmyk2rgb(self, cmyk):
+        '''
+        Input: 4-element ndarray of CMYK values on [0, 1] for a single
+        image pixel.
+
+        Output: 3-element ndarray of RGB values on [0, 1] for a single
+        pixel.
+        '''
         return np.prod(1. - self.eta * cmyk, axis=1)
 
-    # input 3-element np.array on [0, 1] (ie, one pixel)
-    # output 4-element np.array on [0, 1]
     def rgb2cmyk(self, rgb):
+        '''
+        Input: 3-element ndarray of RGB values on [0, 1] for a single
+        pixel.
+
+        Output: 4-element ndarray of CMYK values on [0, 1] for a single
+        image pixel.
+
+        Internally, this code works by optimizing a chi-squared-like
+        objective function based on the forward function cmyk2rgb().
+        The objective function weakly prefers using K ink with the
+        self.epsilon parameter.
+        '''
         def chi(pars):
             chi = np.zeros(4)
             cmyk = logistic(pars)
@@ -74,29 +110,54 @@ class hoggprinter():
         bestpars, foo = op.leastsq(chi, pars, maxfev=3000)
         return logistic(bestpars)
 
-    # input 3-element sequence of bytes (ie, one real image pixel)
-    # output 4-element sequence of bytes
+    def byte2float(self, b):
+        '''
+        Input: byte tuple on [0, 255].  No input checking; use at your
+        own risk!
+
+        Output: float ndarray on [0, 1].
+
+        Note that f = (b + 0.5) / 256.  Think about it!
+        '''
+        return (np.array(b).astype(float) + 0.5) / 256.
+
+    def float2byte(self, f):
+        '''
+        Input: float array on [0, 1].  No input checking; use at your
+        own risk!
+
+        Output: byte tuple on [0, 255].
+
+        Note at b = floor(f * 256.).  Think about it!
+        '''
+        return tuple(np.clip((np.array(f) * 256.).astype(int), 0, 255))
+
     def rgb2cmyk_bytes(self, rgb_bytes):
+        '''
+        Input: 3-element tuple of RGB byte values on [0, 255] for a
+        single pixel.
+
+        Output: 4-element tuple of CMYK byte values on [0, 255] for a
+        single image pixel.
+
+        Note that floats on [0, 1] and bytes on [0, 255] are related by
+        '''
         self.conversions += 1
         if (self.conversions % 1024) == 0:
             print self.conversions, self
         try:
             cmyk_bytes = self.cache[rgb_bytes]
         except KeyError:
-            cmyk = self.rgb2cmyk((np.array(rgb_bytes).astype(float) + 0.5) / 256.)
-            tmp = np.clip((np.array(cmyk) * 256.).astype(int), 0, 255)
-            cmyk_bytes = (tmp[0], tmp[1], tmp[2], tmp[3])
+            cmyk_bytes = self.float2byte(self.rgb2cmyk(self.byte2float(rgb_bytes)))
             self.cache[rgb_bytes] = cmyk_bytes
         return cmyk_bytes
 
-    # input: input and output filenames
     def rgb2cmyk_image(self, ifd):
         ofd2 = im.new('CMYK', ifd.size)
         odata2 = [self.rgb2cmyk_bytes(d) for d in ifd.getdata()]
         ofd2.putdata(odata2)
         return ofd2
 
-    # input: input and output filenames
     def rgb2cmyk_image_file(self, ifn, ofn):
         ifd = im.open(ifn, mode='r').convert('RGB') # this gets rid of alpha channel!
         ofd2 = self.rgb2cmyk_image(ifd)
@@ -216,9 +277,9 @@ def main_test_strip():
 def main():
     if False:
         main_one_pixel()
-        main_image()
-    if True:
         main_test_strip()
+    if True:
+        main_image()
     return None
 
 if __name__ == '__main__':
