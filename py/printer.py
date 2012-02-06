@@ -19,10 +19,13 @@ version 2 along with this program.  If not, see
 # to-do
 # -----
 # - proper doc strings
-# - convert np arrays to sequences much more smartly?
-# - structure / context for image conversion?
-# - better ways to do cacheing of converstions? kd-tree or db or full 16M array?
 
+if __name__ == '__main__':
+    import matplotlib as mpl
+    mpl.use('Agg')
+    from matplotlib import rc
+    rc('font',**{'family':'serif','serif':'Computer Modern Roman','size':8})
+    rc('text', usetex=True)
 import numpy as np
 import scipy.optimize as op
 import Image as im
@@ -166,6 +169,7 @@ def main_image():
     return None
 
 def main_test_strip():
+    import pylab as plt
     ifn = 'test.jpg'
     tmpfn = 'foo.png'
     ifd = im.open(ifn, mode='r').rotate(90)
@@ -212,18 +216,11 @@ def main_test_strip():
 def main():
     if False:
         main_one_pixel()
-    if True:
         main_image()
-    if False:
+    if True:
         main_test_strip()
     return None
 
 if __name__ == '__main__':
-    import matplotlib as mpl
-    mpl.use('Agg')
-    from matplotlib import rc
-    rc('font',**{'family':'serif','serif':'Computer Modern Roman','size':8})
-    rc('text', usetex=True)
-    import pylab as plt
     import cProfile as cp
     cp.run('main()')
