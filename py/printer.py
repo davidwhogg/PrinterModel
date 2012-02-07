@@ -1,28 +1,7 @@
 '''
 This file is part of PrinterModel.
 Copyright 2012 David W. Hogg (NYU) <http://cosmo.nyu.edu/hogg/>.
-
-PrinterModel is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License, version 2, as
-published by the Free Software Foundation.
-
-PrinterModel is distributed in the hope that it will be useful, but
-WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-version 2 along with this program.  If not, see
-<http://www.gnu.org/licenses/old-licenses/gpl-2.0.html>
 '''
-
-# to-do
-# -----
-# - better initialization for rgb2cmyk
-# - proper doc strings for many functions
-# - proper unit tests for logistic and inverse
-# - proper unit tests for float2byte and inverse
-# - proper unit tests for rgb2cmyk and inverse
 
 if __name__ == '__main__':
     import matplotlib as mpl
@@ -53,11 +32,17 @@ class hoggprinter():
     '''
     A class representing the physical CMYK printer model.
 
-    Initialize with three parameters:  YADA, YADA, YADA
+    Initialize with three parameters: The first (delta_K) sets the
+    blackness of the black ink.  The second (delta_d) sets the
+    absorption of the CMY inks of the "diagnoal" (appropriate RGB
+    color) light.  The third (delta_o) sets the absorption of the CMY
+    inks of the "off-diagonal" (inappropriate RGB color) light.
 
-    Note:  Internal hard-set magic number epsilon.
+    Note: Internal hard-set magic number self.epsilon; it sets the
+    printer's preference to use black ink.  This was set by a process
+    of trial and error, monitoring conversions of hard colors.
     '''
-    epsilon = 0.001 # magic number
+    epsilon = 0.01 # magic number
 
     def __init__(self, delta_K, delta_d, delta_o):
         self.eta = np.array(
@@ -102,7 +87,7 @@ class hoggprinter():
 
     def rgb2cmyk(self, rgb):
         '''
-        Input: 3-element ndarray of RGB values on [0, 1] for a single
+        Input: 3-element ndarray of RGB values on (0, 1) for a single
         pixel.
 
         Output: 4-element ndarray of CMYK values on [0, 1] for a single
@@ -112,12 +97,27 @@ class hoggprinter():
         objective function based on the forward function cmyk2rgb().
         The objective function weakly prefers using K ink with the
         self.epsilon parameter.
+
+        Note: The code contains a 0.998: Why?  It is for a good
+        reason.
+
+        Note: This code throws warnings on RGB values equal to 0. or
+        1. because of the logistic function.  Think about it!
         '''
         def chi(pars):
             cmyk = logistic(pars)
-            return np.append(rgb - self.cmyk2rgb(cmyk), self.epsilon * (1. - cmyk[3]))
+            return np.append(rgb - self.cmyk2rgb(cmyk), self.epsilon * (0.998 - cmyk[3]))
         pars = inverse_logistic(self.rgb2cmyk_stoopid(rgb))
-        bestpars, foo = op.leastsq(chi, pars, maxfev=3000)
+        bestpars, status = op.leastsq(chi, pars, maxfev=1000)
+        if (status not in [1, 2, 3, 4]):
+            print 'rgb2cmyk issue:', status, rgb, self.float2byte(rgb)
+            print self.cmyk2rgb(logistic(bestpars)), self.float2byte(self.cmyk2rgb(logistic(bestpars)))
+            print logistic(bestpars), self.float2byte(logistic(bestpars))
+            if (self.float2byte(rgb) == self.float2byte(self.cmyk2rgb(logistic(bestpars)))):
+                print '(no need to panic)'
+            else:
+                print 'PANIC PANIC PANIC PANIC!'
+            print
         return logistic(bestpars)
 
     def byte2float(self, b):
@@ -150,7 +150,9 @@ class hoggprinter():
         Output: 4-element tuple of CMYK byte values on [0, 255] for a
         single image pixel.
 
-        Note that floats on [0, 1] and bytes on [0, 255] are related by
+        Note that floats on [0, 1] and bytes on [0, 255] are related
+        via self.float2byte() and self.byte2float().  Those functions
+        also do some ndarray and tuple-ification.
         '''
         self.conversions += 1
         if (self.conversions % 1024) == 0:
@@ -163,18 +165,38 @@ class hoggprinter():
         return cmyk_bytes
 
     def rgb2cmyk_image(self, ifd):
+        '''
+        Input: File descriptor (produced by im.open()) for an input
+        RGB image.
+
+        Output: File descriptor for an output CMYK image.
+        '''
         ofd2 = im.new('CMYK', ifd.size)
         odata2 = [self.rgb2cmyk_bytes(d) for d in ifd.getdata()]
         ofd2.putdata(odata2)
         return ofd2
 
     def rgb2cmyk_image_file(self, ifn, ofn):
+        '''
+        Input: File names, one for the input RGB image on disk (can be
+        an RGBa image too, but we will flatten / destroy the alpha
+        channel), and one for the destination for the CMYK file on
+        disk.
+
+        Output:  Nothing (but the output file is written).
+
+        Internally runs self.rgb2cmyk_image()
+        '''
         ifd = im.open(ifn, mode='r').convert('RGB') # this gets rid of alpha channel!
         ofd2 = self.rgb2cmyk_image(ifd)
         ofd2.save(ofn)
         return None
 
     def test(self, rgb, verbose=True):
+        '''
+        A test function that assesses the quality of the CMYK
+        representation of a given set of RGB values for one pixel.
+        '''
         cmyk3 = self.rgb2cmyk(rgb)
         rgb4 = self.cmyk2rgb(cmyk3)
         cmyk5 = self.rgb2cmyk(rgb4)
@@ -188,8 +210,16 @@ class hoggprinter():
 
 # assumes same mode for both images
 def concatenate_horizontally(fd1, fd2):
+    '''
+    Input: Two file descriptors (from im.open()) for images; must be
+    of the same mode.
+
+    Output: File descriptor for a new image with the two images placed
+    side-by-side.
+    '''
     w = fd1.size[0] + fd2.size[0]
     h = np.max([fd1.size[1], fd2.size[1]])
+    assert(fd1.mode == fd2.mode)
     result = im.new(fd1.mode, (w, h))
     result.paste(fd1, (0, 0))
     result.paste(fd2, (fd1.size[0], 0))
@@ -197,6 +227,10 @@ def concatenate_horizontally(fd1, fd2):
 
 # assumes same mode for both images
 def concatenate_vertically(fd1, fd2):
+    '''
+    Same as concatenate_horizontally() but output with the two images
+    stacked one on top of the other.
+    '''
     w = np.max([fd1.size[0], fd2.size[0]])
     h = fd1.size[1] + fd2.size[1]
     result = im.new(fd1.mode, (w, h))
@@ -205,7 +239,10 @@ def concatenate_vertically(fd1, fd2):
     return result
 
 def test_logistic():
-    x0 = np.random.uniform(size=1000000)
+    '''
+    Test code for logistic() and inverse_logistic().
+    '''
+    x0 = np.random.uniform(size=100000)
     q1 = logistic(x0)
     x1 = inverse_logistic(q1)
     q2 = logistic(x1)
@@ -219,6 +256,9 @@ def test_logistic():
     return None
 
 def test_float2byte():
+    '''
+    Test code for hoggprinter.float2byte() and hoggprinter.byte2float().
+    '''
     hp = hoggprinter(0.02, 0.15, 0.1)
     b0 = range(256)
     f1 = hp.byte2float(b0)
@@ -230,21 +270,22 @@ def test_float2byte():
     print 'test_float2byte worst f2', f2[worst2], (f2-f1)[worst2]
     return None
 
-def main_one_pixel():
-    # realistic
-    hp = hoggprinter(0.02, 0.15, 0.1)
-    # optimistic
-    # hp = hoggprinter(0.01, 0.01, 0.01)
-    # unreal
-    # hp = hoggprinter(0., 0., 0.)
+def test_rgb2cmyk():
+    '''
+    Test code for hoggprinter.rgb2cmyk() and hoggprinter.cmyk2rgb().
+    '''
+    hp = hoggprinter(0.02, 0.15, 0.1) # realistic
+    # hp = hoggprinter(0.01, 0.01, 0.01) # optimistic
+    # hp = hoggprinter(0., 0., 0.) # unreal
     for rgb in (np.array([1., 0., 0.]),
                 np.array([0., 1., 0.]),
                 np.array([0., 0., 1.]),
                 np.array([0., 0., 0.]),
-                np.array([0.5, 0.5, 0.5]),
+                np.array([0.499, 0.499, 0.499]), # 0.5 is a bad number; why?
                 np.array([1., 1., 1.]),
                 np.random.uniform(size=(3,))):
-        reperr = hp.test(rgb)
+        rgbc = np.clip(rgb, 0.002, 0.998)
+        reperr = hp.test(rgbc)
     maxreperr = 0.
     ntrials = 100
     print 'worst RGB triple found among %d random trials:' % ntrials
@@ -257,7 +298,11 @@ def main_one_pixel():
     reperr = hp.test(worstrgb, verbose=True)
     return None
 
-def main_image():
+def test_image():
+    '''
+    Convert one image from RGB to CMYK.  This function can serve as
+    example code and produces example output.
+    '''
     ifn = 'test.jpg'
     ofn = 'bar.tiff'
     hp = hoggprinter(0.02, 0.15, 0.1)
@@ -265,7 +310,16 @@ def main_image():
     print hp
     return None
 
-def main_test_strip():
+def test_strip():
+    '''
+    Take an input test RGB image and convert it to CMYK on a grid of
+    different printer settings to build a "test strip" that can be
+    printed and measured or inspected.
+
+    There is some straightforward concatenate logic in this code, and
+    it produces tons of intermediate files.  That is because I am
+    impatient when the grass is growing.
+    '''
     import pylab as plt
     ifn = 'test.jpg'
     tmpfn = 'foo.png'
@@ -311,13 +365,13 @@ def main_test_strip():
     return None
 
 def main():
-    if False:
-        main_one_pixel()
-        main_image()
-        main_test_strip()
     if True:
         test_logistic()
         test_float2byte()
+        test_rgb2cmyk()
+        test_image()
+    if False:
+        test_strip()
     return None
 
 if __name__ == '__main__':
