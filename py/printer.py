@@ -87,6 +87,19 @@ class hoggprinter():
         '''
         return np.prod(1. - self.eta * cmyk, axis=1)
 
+    def rgb2cmyk_stoopid(self, rgb):
+        '''
+        Input: 3-element ndarray of RGB values on [0, 1] for a single
+        pixel.
+
+        Output: 4-element ndarray of CMYK values on [0, 1] for a single
+        image pixel.
+
+        This bad (wrong) algorithm is just used to initialize the
+        correct (non-stoopid) optimization algorithm.
+        '''
+        return np.append(1. - rgb, 1. - np.max(rgb))
+
     def rgb2cmyk(self, rgb):
         '''
         Input: 3-element ndarray of RGB values on [0, 1] for a single
@@ -101,12 +114,9 @@ class hoggprinter():
         self.epsilon parameter.
         '''
         def chi(pars):
-            chi = np.zeros(4)
             cmyk = logistic(pars)
-            chi[0:3] = rgb - self.cmyk2rgb(cmyk)
-            chi[3] = self.epsilon * (1. - cmyk[3])
-            return chi
-        pars = np.zeros(4)
+            return np.append(rgb - self.cmyk2rgb(cmyk), self.epsilon * (1. - cmyk[3]))
+        pars = inverse_logistic(self.rgb2cmyk_stoopid(rgb))
         bestpars, foo = op.leastsq(chi, pars, maxfev=3000)
         return logistic(bestpars)
 
@@ -194,6 +204,20 @@ def concatenate_vertically(fd1, fd2):
     result.paste(fd2, (0, fd1.size[1]))
     return result
 
+def test_logistic():
+    x0 = np.random.uniform(size=1000000)
+    q1 = logistic(x0)
+    x1 = inverse_logistic(q1)
+    q2 = logistic(x1)
+    x2 = inverse_logistic(q2)
+    worst1 = np.argmax(np.abs(x0-x1))
+    print 'test_logistic worst x1', x1[worst1], (x1-x0)[worst1]
+    worst2 = np.argmax(np.abs(x0-x2))
+    print 'test_logistic worst x2', x2[worst2], (x2-x0)[worst2]
+    worst3 = np.argmax(np.abs(q1-q2))
+    print 'test_logistic worst q2', q2[worst3], (q1-q2)[worst3]
+    return None
+
 def main_one_pixel():
     # realistic
     hp = hoggprinter(0.02, 0.15, 0.1)
@@ -277,9 +301,10 @@ def main_test_strip():
 def main():
     if False:
         main_one_pixel()
+        main_image()
         main_test_strip()
     if True:
-        main_image()
+        test_logistic()
     return None
 
 if __name__ == '__main__':
