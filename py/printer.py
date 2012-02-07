@@ -218,6 +218,18 @@ def test_logistic():
     print 'test_logistic worst q2', q2[worst3], (q1-q2)[worst3]
     return None
 
+def test_float2byte():
+    hp = hoggprinter(0.02, 0.15, 0.1)
+    b0 = range(256)
+    f1 = hp.byte2float(b0)
+    b1 = np.array(hp.float2byte(f1))
+    f2 = hp.byte2float(b1)
+    worst1 = np.argmax(np.abs(b0-b1))
+    print 'test_float2byte worst b1', b1[worst1], (b1-b0)[worst1]
+    worst2 = np.argmax(np.abs(f1-f2))
+    print 'test_float2byte worst f2', f2[worst2], (f2-f1)[worst2]
+    return None
+
 def main_one_pixel():
     # realistic
     hp = hoggprinter(0.02, 0.15, 0.1)
@@ -305,6 +317,7 @@ def main():
         main_test_strip()
     if True:
         test_logistic()
+        test_float2byte()
     return None
 
 if __name__ == '__main__':
