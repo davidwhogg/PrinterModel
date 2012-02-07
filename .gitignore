@@ -1,1 +1,7 @@
 *~
+*.aux
+*.log
+*.png
+*.pyc
+*.tiff
+rgb_cmyk.pdf
