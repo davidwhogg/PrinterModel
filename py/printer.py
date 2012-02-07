@@ -366,12 +366,12 @@ def test_strip():
 
 def main():
     if True:
+        test_strip()
+    if False:
         test_logistic()
         test_float2byte()
         test_rgb2cmyk()
         test_image()
-    if False:
-        test_strip()
     return None
 
 if __name__ == '__main__':
