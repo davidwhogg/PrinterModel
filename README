@@ -1,6 +1,6 @@
 PrinterModel
 
-A model of the RGB-to-CMYK conversion (and back) that is based on the
+A model of the RGB-to-CMYK conversion (and back), based on the
 physical properties of ink on paper.
 
 Copyright 2012 David W. Hogg (NYU) <http://cosmo.nyu.edu/hogg/>.
