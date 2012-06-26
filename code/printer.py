@@ -327,12 +327,14 @@ def test_strip():
     nx, ny = ifd.size
     k = 0
     dKfd = None
-    drange = [0.3, 0.03, 0.003]
-    for dK in drange:
+    dKrange = [0.2, 0.1, 0.05]
+    ddrange = [0.02, 0.01, 0.005]
+    dorange = [0.02, 0.01, 0.005]
+    for dK in dKrange:
         ddfd = None
-        for dd in drange:
+        for dd in ddrange:
             dofd = None
-            for do in drange:
+            for do in dorange:
                 k += 1
                 plt.clf()
                 plt.figure(figsize=(1., 0.2))
@@ -351,7 +353,6 @@ def test_strip():
                     dofd = ofd
                 else:
                     dofd = concatenate_horizontally(dofd, ofd)
-                dofd.save('bar-%03d.tiff' % k)
             if ddfd is None:
                 ddfd = dofd
             else:
