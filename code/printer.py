@@ -319,6 +319,9 @@ def test_strip():
     There is some straightforward concatenate logic in this code, and
     it produces tons of intermediate files.  That is because I am
     impatient when the grass is growing.
+
+    The grid center and spacing is based on a test print made by Ekta
+    Patel (NYU) in 2012-06.
     '''
     import pylab as plt
     ifn = 'test.jpg'
