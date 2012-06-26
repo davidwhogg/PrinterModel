@@ -351,7 +351,7 @@ def test_strip():
                 plt.ylim(0,1)
                 plt.axis('off')
                 plt.text(0,0,'%.3f %.3f %.3f' % (dK, dd, do))
-                plt.savefig(tmpfn, dpi = nx)
+                plt.savefig(tmpfn, dpi = 2 * nx)
                 tmpfd = im.open(tmpfn, mode='r').convert('RGB')
                 cfd = concatenate_vertically(tmpfd, ifd)
                 cfd.save('foo-%03d.png' % k)
