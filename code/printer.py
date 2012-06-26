@@ -15,16 +15,17 @@ import Image as im
 
 def logistic(x):
     '''
-    Compute and return the logistic function of x.  x can be anything of which you
-    can take the np.exp(x).  The return value q will have 0<q<1.
+    Compute and return the logistic function of `x`.  `x` can be
+    anything of which you can take the `np.exp(x)`.  The return value
+    `q` will have `0 < q < 1`.
     '''
     return 1. / (1. + np.exp(-x))
 
 def inverse_logistic(q):
     '''
-    Compute and return the number x for which the logistic function
-    gives the input q.  The input can be any number 0<q<1 of which you
-    can take the np.log().
+    Compute and return the number `x` for which the logistic function
+    gives the input `q`.  The input can be anything `0 < q < 1` of
+    which you can take the `np.log()`.
     '''
     return -1. * np.log(1. / q - 1.)
 
@@ -98,7 +99,7 @@ class hoggprinter():
         The objective function weakly prefers using K ink with the
         self.epsilon parameter.
 
-        Note: The code contains a 0.998: Why?  It is for a good
+        Note: The code contains a `0.998`: Why?  It is for a good
         reason.
 
         Note: This code throws warnings on RGB values equal to 0. or
@@ -125,9 +126,9 @@ class hoggprinter():
         Input: byte tuple on [0, 255].  No input checking; use at your
         own risk!
 
-        Output: float ndarray on [0, 1].
+        Output: float `ndarray` on [0, 1].
 
-        Note that f = (b + 0.5) / 256.  Think about it!
+        Note that `f = (b + 0.5) / 256`.  Think about it!
         '''
         return (np.array(b).astype(float) + 0.5) / 256.
 
@@ -138,7 +139,7 @@ class hoggprinter():
 
         Output: byte tuple on [0, 255].
 
-        Note at b = floor(f * 256.).  Think about it!
+        Note that `b = floor(f * 256.)`.  Think about it!
         '''
         return tuple(np.clip((np.array(f) * 256.).astype(int), 0, 255))
 
@@ -151,11 +152,11 @@ class hoggprinter():
         single image pixel.
 
         Note that floats on [0, 1] and bytes on [0, 255] are related
-        via self.float2byte() and self.byte2float().  Those functions
-        also do some ndarray and tuple-ification.
+        via `self.float2byte()` and `self.byte2float()`.  Those functions
+        also do some `ndarray` and tuple-ification.
         '''
         self.conversions += 1
-        if (self.conversions % 1024) == 0:
+        if (self.conversions % 2 ** 16) == 0:
             print self.conversions, self
         try:
             cmyk_bytes = self.cache[rgb_bytes]
@@ -166,7 +167,7 @@ class hoggprinter():
 
     def rgb2cmyk_image(self, ifd):
         '''
-        Input: File descriptor (produced by im.open()) for an input
+        Input: File descriptor (produced by `im.open()`) for an input
         RGB image.
 
         Output: File descriptor for an output CMYK image.
@@ -320,14 +321,18 @@ def test_strip():
     it produces tons of intermediate files.  That is because I am
     impatient when the grass is growing.
 
-    The grid center and spacing is based on a test print made by Ekta
-    Patel (NYU) in 2012-06.
+    The image is expanded 4x4 before use to make the pixels chunky for
+    printing.
+
+    The `(dK, dd, do)` grid center and spacing is based on a test
+    print made by Ekta Patel (NYU) in 2012-06.
     '''
     import pylab as plt
     ifn = 'test.jpg'
     tmpfn = 'foo.png'
     ifd = im.open(ifn, mode='r').rotate(90)
     nx, ny = ifd.size
+    ifd = ifd.resize((4 * nx, 4 * ny), im.NEAREST)
     k = 0
     dKfd = None
     dKrange = [0.2, 0.1, 0.05]
@@ -356,6 +361,7 @@ def test_strip():
                     dofd = ofd
                 else:
                     dofd = concatenate_horizontally(dofd, ofd)
+                dofd.save('bar-%03d.tiff' % k)
             if ddfd is None:
                 ddfd = dofd
             else:
